@@ -1,8 +1,10 @@
 # MyHissab SDK
 
-iOS Swift Package that embeds the MyHissab webapp in a `WKWebView`. Pass a `clientId`; the SDK opens:
+iOS Swift Package that embeds the MyHissab webapp in a `WKWebView`. Pass a `customerId`; the SDK opens:
 
-`https://app.myhisaab.pk/login?clientId=<value>`
+`https://simosa.myhisaab.pk/login?customerId=<url-encoded value>`
+
+The customer id is percent-encoded by the SDK, so spaces and special characters (`&`, `=`, `+`, `#`, `/`, `?`, emoji, non-Latin text) cannot break the URL. Leading and trailing whitespace is trimmed; if the value is empty, the SDK opens `/login` without the parameter.
 
 Requires iOS 15+.
 
@@ -23,13 +25,13 @@ Select the `MyHissabSDK` product and add it to your app target.
 ```swift
 import MyHissabSDK
 
-MyHissabView(clientId: "your-client-id")
+MyHissabView(customerId: "your-customer-id")
 ```
 
 Staging:
 
 ```swift
-MyHissabView(clientId: "your-client-id", environment: .staging)
+MyHissabView(customerId: "your-customer-id", environment: .staging)
 ```
 
 ### UIKit
@@ -37,9 +39,11 @@ MyHissabView(clientId: "your-client-id", environment: .staging)
 ```swift
 import MyHissabSDK
 
-let viewController = MyHissabViewController(clientId: "your-client-id")
+let viewController = MyHissabViewController(customerId: "your-customer-id")
 present(viewController, animated: true)
 ```
+
+The older `clientId:` initializers still compile but are deprecated; use `customerId:`.
 
 ## Info.plist
 

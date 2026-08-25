@@ -1,12 +1,19 @@
 import SwiftUI
 
-/// Embeds the MyHissab webapp in a WebView, passing `clientId` as a query parameter.
+/// Embeds the MyHissab webapp in a WebView, passing `customerId` as a query parameter.
+///
+/// Loads `https://simosa.myhisaab.pk/login?customerId=<percent-encoded value>`.
 public struct MyHissabView: View {
     private let url: URL
     @State private var isLoading = true
 
+    public init(customerId: String, environment: MyHissabEnvironment = .production) {
+        self.url = MyHissabURL.login(customerId: customerId, environment: environment)
+    }
+
+    @available(*, deprecated, renamed: "init(customerId:environment:)")
     public init(clientId: String, environment: MyHissabEnvironment = .production) {
-        self.url = MyHissabURL.login(clientId: clientId, environment: environment)
+        self.init(customerId: clientId, environment: environment)
     }
 
     public var body: some View {

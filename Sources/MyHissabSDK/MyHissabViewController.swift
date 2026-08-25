@@ -1,15 +1,22 @@
 import SwiftUI
 import UIKit
 
-/// UIKit wrapper that presents the MyHissab webapp with a `clientId` query parameter.
+/// UIKit wrapper that presents the MyHissab webapp with a `customerId` query parameter.
+///
+/// Loads `https://simosa.myhisaab.pk/login?customerId=<percent-encoded value>`.
 public final class MyHissabViewController: UIViewController {
-    private let clientId: String
+    private let customerId: String
     private let environment: MyHissabEnvironment
 
-    public init(clientId: String, environment: MyHissabEnvironment = .production) {
-        self.clientId = clientId
+    public init(customerId: String, environment: MyHissabEnvironment = .production) {
+        self.customerId = customerId
         self.environment = environment
         super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, deprecated, renamed: "init(customerId:environment:)")
+    public convenience init(clientId: String, environment: MyHissabEnvironment = .production) {
+        self.init(customerId: clientId, environment: environment)
     }
 
     @available(*, unavailable)
@@ -21,7 +28,7 @@ public final class MyHissabViewController: UIViewController {
         super.viewDidLoad()
 
         let hosted = UIHostingController(
-            rootView: MyHissabView(clientId: clientId, environment: environment)
+            rootView: MyHissabView(customerId: customerId, environment: environment)
         )
         addChild(hosted)
         hosted.view.translatesAutoresizingMaskIntoConstraints = false
