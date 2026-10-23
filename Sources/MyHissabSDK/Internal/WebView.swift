@@ -9,7 +9,8 @@ struct SDKWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let webConfiguration = WKWebViewConfiguration()
         webConfiguration.allowsInlineMediaPlayback = true
-        webConfiguration.userContentController.add(context.coordinator, name: "downloadHandler")
+        // URL-based download is disabled for now; `downloadFile` (base64) is the only active handler.
+        // webConfiguration.userContentController.add(context.coordinator, name: "downloadHandler")
         webConfiguration.userContentController.add(context.coordinator, name: "downloadFile")
         webConfiguration.userContentController.add(context.coordinator, name: "cameraHandler")
 
@@ -49,6 +50,8 @@ struct SDKWebView: UIViewRepresentable {
                 return
             }
 
+            // URL-based download disabled for now — base64 `downloadFile` is the only active path.
+            /*
             if message.name == "downloadHandler" {
                 // URL contract: fetch the file from a remote URL.
                 if let body = message.body as? [String: String],
@@ -59,6 +62,7 @@ struct SDKWebView: UIViewRepresentable {
                 }
                 return
             }
+            */
 
             if message.name == "cameraHandler" {
                 presentMediaSelectionMenu()
@@ -109,6 +113,8 @@ struct SDKWebView: UIViewRepresentable {
             }
         }
 
+        // URL-based download disabled for now — base64 `downloadFile` is the only active path.
+        /*
         /// Fetches a file from a remote URL, then presents the native share/save sheet.
         private func downloadFile(from url: URL, fileName: String) {
             DispatchQueue.main.async { self.parent.isLoading = true }
@@ -130,6 +136,7 @@ struct SDKWebView: UIViewRepresentable {
                 } catch {}
             }.resume()
         }
+        */
 
         // MARK: - Media Selection
 
