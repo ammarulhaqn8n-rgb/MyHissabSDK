@@ -10,6 +10,7 @@ struct SDKWebView: UIViewRepresentable {
         let webConfiguration = WKWebViewConfiguration()
         webConfiguration.allowsInlineMediaPlayback = true
         webConfiguration.userContentController.add(context.coordinator, name: "downloadHandler")
+        webConfiguration.userContentController.add(context.coordinator, name: "downloadFile")
         webConfiguration.userContentController.add(context.coordinator, name: "cameraHandler")
 
         let webView = WKWebView(frame: .zero, configuration: webConfiguration)
@@ -40,35 +41,94 @@ struct SDKWebView: UIViewRepresentable {
         // MARK: - WKScriptMessageHandler
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            if message.name == "downloadHandler",
-               let body = message.body as? [String: String],
-               let urlString = body["url"],
-               let downloadURL = URL(string: urlString),
-               let fileName = body["fileName"] {
+            // Base64 file export (PDF/CSV): downloadFile(base64, fileName, mimeType).
+            if message.name == "downloadFile" {
+                if let payload = base64DownloadPayload(from: message.body) {
+                    handleBase64Download(base64: payload.base64, fileName: payload.fileName)
+                }
+                return
+            }
 
-                DispatchQueue.main.async { self.parent.isLoading = true }
-
-                URLSession.shared.dataTask(with: downloadURL) { [weak self] data, _, error in
-                    DispatchQueue.main.async { self?.parent.isLoading = false }
-                    guard let data = data, error == nil else { return }
-
-                    let fileManager = FileManager.default
-                    let destinationURL = fileManager.temporaryDirectory.appendingPathComponent(fileName)
-
-                    if fileManager.fileExists(atPath: destinationURL.path) {
-                        try? fileManager.removeItem(at: destinationURL)
-                    }
-
-                    do {
-                        try data.write(to: destinationURL)
-                        self?.presentShareSheet(for: destinationURL)
-                    } catch {}
-                }.resume()
+            if message.name == "downloadHandler" {
+                // URL contract: fetch the file from a remote URL.
+                if let body = message.body as? [String: String],
+                   let urlString = body["url"],
+                   let downloadURL = URL(string: urlString),
+                   let fileName = body["fileName"] {
+                    downloadFile(from: downloadURL, fileName: fileName)
+                }
+                return
             }
 
             if message.name == "cameraHandler" {
                 presentMediaSelectionMenu()
             }
+        }
+
+        // MARK: - Downloads
+
+        /// Extracts the base64 download payload from the object the web app posts:
+        /// `{ base64, fileName, mimeType }`.
+        private func base64DownloadPayload(from body: Any) -> (base64: String, fileName: String)? {
+            guard let dict = body as? [String: Any],
+                  let base64 = dict["base64"] as? String, !base64.isEmpty else {
+                return nil
+            }
+            let fileName = (dict["fileName"] as? String) ?? "download"
+            return (base64, fileName)
+        }
+
+        /// Decodes base64 bytes to a temp file and presents the native share/save sheet.
+        private func handleBase64Download(base64: String, fileName: String) {
+            // Tolerate an accidental "data:<mime>;base64," prefix.
+            let encoded: String
+            if base64.hasPrefix("data:"), let comma = base64.firstIndex(of: ",") {
+                encoded = String(base64[base64.index(after: comma)...])
+            } else {
+                encoded = base64
+            }
+
+            guard let data = Data(base64Encoded: encoded, options: .ignoreUnknownCharacters) else {
+                print("[Download] Invalid base64 payload for \(fileName)")
+                return
+            }
+
+            let safeName = fileName.isEmpty ? "download" : fileName.replacingOccurrences(of: "/", with: "_")
+            let fileManager = FileManager.default
+            let destinationURL = fileManager.temporaryDirectory.appendingPathComponent(safeName)
+
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                try? fileManager.removeItem(at: destinationURL)
+            }
+
+            do {
+                try data.write(to: destinationURL)
+                presentShareSheet(for: destinationURL)
+            } catch {
+                print("[Download] Failed to write file: \(error.localizedDescription)")
+            }
+        }
+
+        /// Fetches a file from a remote URL, then presents the native share/save sheet.
+        private func downloadFile(from url: URL, fileName: String) {
+            DispatchQueue.main.async { self.parent.isLoading = true }
+
+            URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
+                DispatchQueue.main.async { self?.parent.isLoading = false }
+                guard let data = data, error == nil else { return }
+
+                let fileManager = FileManager.default
+                let destinationURL = fileManager.temporaryDirectory.appendingPathComponent(fileName)
+
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try? fileManager.removeItem(at: destinationURL)
+                }
+
+                do {
+                    try data.write(to: destinationURL)
+                    self?.presentShareSheet(for: destinationURL)
+                } catch {}
+            }.resume()
         }
 
         // MARK: - Media Selection
