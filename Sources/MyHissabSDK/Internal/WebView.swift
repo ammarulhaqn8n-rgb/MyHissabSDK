@@ -9,9 +9,9 @@ struct SDKWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let webConfiguration = WKWebViewConfiguration()
         webConfiguration.allowsInlineMediaPlayback = true
-        // URL-based download is disabled for now; `downloadFile` (base64) is the only active handler.
-        // webConfiguration.userContentController.add(context.coordinator, name: "downloadHandler")
-        webConfiguration.userContentController.add(context.coordinator, name: "downloadFile")
+        // URL-based download is the active handler; `downloadFile` (base64) is disabled for now.
+        webConfiguration.userContentController.add(context.coordinator, name: "downloadHandler")
+        // webConfiguration.userContentController.add(context.coordinator, name: "downloadFile")
         webConfiguration.userContentController.add(context.coordinator, name: "cameraHandler")
 
         let webView = WKWebView(frame: .zero, configuration: webConfiguration)
@@ -42,23 +42,23 @@ struct SDKWebView: UIViewRepresentable {
         // MARK: - WKScriptMessageHandler
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            // Base64 file export (PDF/CSV): downloadFile(base64, fileName, mimeType).
-            if message.name == "downloadFile" {
-                if let payload = base64DownloadPayload(from: message.body) {
-                    handleBase64Download(base64: payload.base64, fileName: payload.fileName)
-                }
-                return
-            }
-
-            // URL-based download disabled for now — base64 `downloadFile` is the only active path.
-            /*
+            // URL-based download (active): downloadHandler({ url, fileName }).
             if message.name == "downloadHandler" {
-                // URL contract: fetch the file from a remote URL.
                 if let body = message.body as? [String: String],
                    let urlString = body["url"],
                    let downloadURL = URL(string: urlString),
                    let fileName = body["fileName"] {
                     downloadFile(from: downloadURL, fileName: fileName)
+                }
+                return
+            }
+
+            // Base64 file export disabled for now — URL-based `downloadHandler` is the active path.
+            /*
+            // Base64 file export (PDF/CSV): downloadFile(base64, fileName, mimeType).
+            if message.name == "downloadFile" {
+                if let payload = base64DownloadPayload(from: message.body) {
+                    handleBase64Download(base64: payload.base64, fileName: payload.fileName)
                 }
                 return
             }
@@ -71,6 +71,31 @@ struct SDKWebView: UIViewRepresentable {
 
         // MARK: - Downloads
 
+        /// Fetches a file from a remote URL, then presents the native share/save sheet. (active path)
+        private func downloadFile(from url: URL, fileName: String) {
+            DispatchQueue.main.async { self.parent.isLoading = true }
+
+            URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
+                DispatchQueue.main.async { self?.parent.isLoading = false }
+                guard let data = data, error == nil else { return }
+
+                let fileManager = FileManager.default
+                let destinationURL = fileManager.temporaryDirectory.appendingPathComponent(fileName)
+
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try? fileManager.removeItem(at: destinationURL)
+                }
+
+                do {
+                    try data.write(to: destinationURL)
+                    self?.presentShareSheet(for: destinationURL)
+                } catch {}
+            }.resume()
+        }
+
+        // Base64 download disabled for now — URL-based `downloadHandler` is the active path.
+        // To switch back to base64, flip this block with the registration + message branches above.
+        /*
         /// Extracts the base64 download payload from the object the web app posts:
         /// `{ base64, fileName, mimeType }`.
         private func base64DownloadPayload(from body: Any) -> (base64: String, fileName: String)? {
@@ -111,30 +136,6 @@ struct SDKWebView: UIViewRepresentable {
             } catch {
                 print("[Download] Failed to write file: \(error.localizedDescription)")
             }
-        }
-
-        // URL-based download disabled for now — base64 `downloadFile` is the only active path.
-        /*
-        /// Fetches a file from a remote URL, then presents the native share/save sheet.
-        private func downloadFile(from url: URL, fileName: String) {
-            DispatchQueue.main.async { self.parent.isLoading = true }
-
-            URLSession.shared.dataTask(with: url) { [weak self] data, _, error in
-                DispatchQueue.main.async { self?.parent.isLoading = false }
-                guard let data = data, error == nil else { return }
-
-                let fileManager = FileManager.default
-                let destinationURL = fileManager.temporaryDirectory.appendingPathComponent(fileName)
-
-                if fileManager.fileExists(atPath: destinationURL.path) {
-                    try? fileManager.removeItem(at: destinationURL)
-                }
-
-                do {
-                    try data.write(to: destinationURL)
-                    self?.presentShareSheet(for: destinationURL)
-                } catch {}
-            }.resume()
         }
         */
 
